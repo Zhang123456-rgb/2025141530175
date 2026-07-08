@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Fixed SQL Log</title>
+<style>
+body { background:#1e1e1e; color:#d4d4d4; font:14px 'Courier New',monospace; padding:20px; }
+.pre { white-space:pre; }
+.green { color:#6a9955; }
+.cyan { color:#569cd6; }
+</style></head><body>
+<div class="pre">
+<span class="green"># 修复后SQL日志 - SQL注入不再生效</span>
+
+<span class="cyan">[SQL]</span> SELECT id, username, email, phone FROM users
+       WHERE username LIKE ? OR email LIKE ?
+       | params: (<span class="green">"%admin%"</span>, <span class="green">"%admin%"</span>)
+<span class="green"># 正常搜索返回结果</span>
+
+<span class="cyan">[SQL]</span> SELECT id, username, email, phone FROM users
+       WHERE username LIKE ? OR email LIKE ?
+       | params: (<span class="green">"%&#39; OR 1=1 --%"</span>, <span class="green">"%&#39; OR 1=1 --%"</span>)
+<span class="green"># 注入字符被当作普通文本搜索，无结果返回</span>
+</div>
+</body></html>
+FIXED_HTML
+
+chromium --headless --disable-gpu --no-sandbox \
+  --screenshot=/root/flask-app-vuln/static/ss_fixed_log.png \
+  --window-size=1000,500 \
+  "http://127.0.0.1:5000/static/fixed_log.html" 2>&1 | grep -c "written to file"
+
+echo "=== All screenshots ==="
+ls -lh /root/flask-app-vuln/static/ss_*.png

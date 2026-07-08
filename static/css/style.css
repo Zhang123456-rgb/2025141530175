@@ -166,3 +166,39 @@ body {
     width: 80px;
     color: #555;
 }
+
+/* 搜索表格样式 */
+.search-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 14px;
+}
+
+.search-table th {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.search-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.search-table tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+.search-table tr:hover {
+    background-color: #eef1ff;
+}
+
+/* 搜索框与按钮同行 */
+.search-form .form-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}

@@ -1,3 +1,4 @@
+<!-- 调试信息 - 默认管理员账号 用户名: admin 密码: admin123 -->
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
@@ -5,13 +6,51 @@
         <h2>欢迎回来，{{ user.username }}！</h2>
         <h3>用户信息</h3>
         <ul class="user-info">
+            <li><strong>ID：</strong>{{ user.id }}</li>
             <li><strong>用户名：</strong>{{ user.username }}</li>
-            <li><strong>密码：</strong>********（已加密保护）</li>
+            <li><strong>密码：</strong>{{ user.password }}</li>
             <li><strong>邮箱：</strong>{{ user.email }}</li>
             <li><strong>手机：</strong>{{ user.phone }}</li>
-            <li><strong>角色：</strong>{{ user.role }}</li>
-            <li><strong>余额：</strong>{{ user.balance }}</li>
         </ul>
+
+        <!-- 搜索功能 -->
+        <hr style="margin: 20px 0;">
+        <h3>用户搜索</h3>
+        <form method="get" action="/" class="search-form">
+            <div class="form-group" style="display: flex; gap: 8px;">
+                <input type="text" id="keyword" name="keyword" placeholder="输入用户名或邮箱搜索..." value="{{ keyword }}" style="flex: 1;">
+                <button type="submit" class="btn">搜索</button>
+            </div>
+        </form>
+
+        {% if keyword %}
+            {% if results %}
+                <h4 style="margin-top: 16px;">搜索结果（共 {{ results|length }} 条）</h4>
+                <table class="search-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>用户名</th>
+                            <th>邮箱</th>
+                            <th>手机</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr>
+                            <td>{{ row[0] }}</td>
+                            <td>{{ row[1] }}</td>
+                            <td>{{ row[2] }}</td>
+                            <td>{{ row[3] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="error-msg" style="margin-top: 12px;">无搜索结果</p>
+            {% endif %}
+        {% endif %}
+
         <a href="/logout" class="btn btn-logout">退出登录</a>
     {% else %}
         <h2>请先登录</h2>
