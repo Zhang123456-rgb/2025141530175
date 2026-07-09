@@ -4,9 +4,11 @@ import sqlite3
 
 app = Flask(__name__)
 app.secret_key = "dev-key-2025"
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB
 
 # ============ SQLite 数据库初始化 ============
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "users.db")
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "static", "uploads")
 
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -175,6 +177,40 @@ def register():
     return render_template("register.html", message=message)
 
 
+@app.route("/upload", methods=["GET", "POST"])
+def upload():
+    # 需要登录才能访问
+    if "username" not in session:
+        return redirect("/login")
+
+    upload_msg = None
+    upload_success = False
+    file_url = None
+    filename = None
+
+    if request.method == "POST":
+        if "file" not in request.files:
+            upload_msg = "没有选择文件"
+        else:
+            f = request.files["file"]
+            if f.filename == "":
+                upload_msg = "文件名为空"
+            else:
+                # ⚠️ 不安全：使用用户原始文件名，不做任何检查
+                filename = f.filename
+                save_path = os.path.join(UPLOAD_DIR, filename)
+                f.save(save_path)
+                file_url = f"/static/uploads/{filename}"
+                upload_success = True
+                upload_msg = "上传成功！"
+
+    return render_template("upload.html",
+                           upload_msg=upload_msg,
+                           upload_success=upload_success,
+                           file_url=file_url,
+                           filename=filename)
+
+
 @app.route("/logout")
 def logout():
     session.clear()
@@ -182,4 +218,5 @@ def logout():
 
 
 if __name__ == "__main__":
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     app.run(debug=True, host="0.0.0.0", port=5000)
