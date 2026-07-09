@@ -1,0 +1,32 @@
+{% extends "base_fixed.html" %}
+{% block content %}
+<div class="card">
+    <h2>上传头像</h2>
+
+    <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form">
+        <div class="form-group">
+            <label for="file">选择图片文件（仅支持 jpg/png/gif/bmp/webp）</label>
+            <input type="file" id="file" name="file" accept=".jpg,.jpeg,.png,.gif,.bmp,.webp" required>
+        </div>
+        <button type="submit" class="btn">上传</button>
+    </form>
+
+    {% if upload_msg %}
+        {% if upload_success %}
+            <div class="success-msg" style="margin-top: 16px;">
+                <p>{{ upload_msg }}</p>
+                <p>文件链接：<a href="{{ file_url }}" target="_blank">{{ file_url }}</a></p>
+                <div style="margin-top: 12px;">
+                    <img src="{{ file_url }}" alt="上传的头像" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #ddd;">
+                </div>
+            </div>
+        {% else %}
+            <p class="error-msg" style="margin-top: 16px;">{{ upload_msg }}</p>
+        {% endif %}
+    {% endif %}
+
+    <div style="margin-top: 20px;">
+        <a href="/" class="btn" style="text-decoration: none;">返回首页</a>
+    </div>
+</div>
+{% endblock %}

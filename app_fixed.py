@@ -2,12 +2,15 @@ from flask import Flask, render_template, request, redirect, session
 import os
 import sqlite3
 import hashlib
+import uuid
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24).hex()
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB
 
 # ============ SQLite 数据库初始化 ============
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "users.db")
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "static", "uploads")
 
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -114,6 +117,47 @@ def register():
             conn.close()
 
     return render_template("register.html", message=message)
+
+
+@app.route("/upload", methods=["GET", "POST"])
+def upload():
+    if "username" not in session:
+        return redirect("/login")
+
+    upload_msg = None
+    upload_success = False
+    file_url = None
+    filename = None
+
+    # ✅ 允许的图片扩展名白名单
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
+
+    if request.method == "POST":
+        if "file" not in request.files:
+            upload_msg = "没有选择文件"
+        else:
+            f = request.files["file"]
+            if f.filename == "":
+                upload_msg = "文件名为空"
+            else:
+                # ✅ 检查文件扩展名
+                ext = os.path.splitext(f.filename)[1].lower()
+                if ext not in ALLOWED_EXTENSIONS:
+                    upload_msg = f"不支持的文件类型：{ext}，仅允许图片文件"
+                else:
+                    # ✅ 使用 UUID 重命名，防止路径穿越和覆盖
+                    safe_filename = uuid.uuid4().hex + ext
+                    save_path = os.path.join(UPLOAD_DIR, safe_filename)
+                    f.save(save_path)
+                    file_url = f"/static/uploads/{safe_filename}"
+                    upload_success = True
+                    upload_msg = "上传成功！"
+
+    return render_template("upload_fixed.html",
+                           upload_msg=upload_msg,
+                           upload_success=upload_success,
+                           file_url=file_url,
+                           filename=filename)
 
 
 @app.route("/logout")
