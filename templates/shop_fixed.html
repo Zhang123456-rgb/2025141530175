@@ -1,0 +1,27 @@
+{% extends "base_fixed.html" %}
+{% block content %}
+<div class="card">
+    <h2>🛒 商城</h2>
+    <table class="search-table" style="margin-top: 16px;">
+        <thead>
+            <tr><th>ID</th><th>商品</th><th>价格</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for p in products %}
+            <tr>
+                <td>{{ p.id }}</td>
+                <td>{{ p.name }}</td>
+                <td>¥{{ p.price }}</td>
+                <td>
+                    <form method="post" action="/cart" style="display:flex;gap:4px;">
+                        <input type="hidden" name="product_id" value="{{ p.id }}">
+                        <input type="number" name="quantity" value="1" min="1" style="width:60px;padding:4px;">
+                        <button type="submit" class="btn" style="padding:6px 12px;">加购</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -30,7 +30,21 @@ def init_db():
     c.execute("INSERT OR IGNORE INTO users (username, password, email, phone, balance) VALUES (?, ?, ?, ?, ?)",
               ("alice", "alice2025", "alice@example.com", "13900139001", 100))
 
-    # 兼容旧表：如果 balance 列不存在则添加
+    # 创建商品表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            price REAL NOT NULL
+        )
+    """)
+    # 插入默认商品
+    c.execute("INSERT OR IGNORE INTO products (id, name, price) VALUES (1, 'iPhone 15 Pro Max', 9999)")
+    c.execute("INSERT OR IGNORE INTO products (id, name, price) VALUES (2, 'MacBook Pro 16', 19999)")
+    c.execute("INSERT OR IGNORE INTO products (id, name, price) VALUES (3, 'AirPods Max', 3999)")
+    c.execute("INSERT OR IGNORE INTO products (id, name, price) VALUES (4, 'iPad Pro 12.9', 7999)")
+
+    # 兼容旧表
     try:
         c.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
     except:
@@ -267,6 +281,79 @@ def recharge():
     conn.close()
 
     return redirect(f"/profile?user_id={user_id}")
+
+
+@app.route("/shop", methods=["GET"])
+def shop():
+    """商品列表页面"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT id, name, price FROM products")
+    products = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return render_template("shop.html", products=products)
+
+
+@app.route("/cart", methods=["POST"])
+def cart():
+    """
+    ⚠️ 业务逻辑漏洞：商品价格由客户端提交，可被篡改
+    Burp拦截后将price改成任意值即可低价购买
+    """
+    if "username" not in session:
+        return redirect("/login")
+
+    product_id = request.form.get("product_id")
+    product_name = request.form.get("product_name")
+    price = request.form.get("price")  # ⚠️ 客户端提交价格，不可信！
+    quantity = request.form.get("quantity", "1")
+
+    # 直接使用客户端提交的价格（漏洞！）
+    total = float(price) * int(quantity)
+
+    return render_template("cart.html",
+                           product_name=product_name,
+                           price=price,
+                           quantity=quantity,
+                           total=total)
+
+
+@app.route("/admin", methods=["GET"])
+def admin_panel():
+    """
+    ⚠️ 垂直越权漏洞：未检查当前用户是否为管理员
+    普通用户直接访问/admin即可看到管理面板
+    """
+    if "username" not in session:
+        return redirect("/login")
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT id, username, email, balance FROM users")
+    users = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return render_template("admin.html", users=users)
+
+
+@app.route("/admin/delete-user", methods=["POST"])
+def admin_delete_user():
+    """
+    ⚠️ 垂直越权漏洞：未检查管理员权限
+    任何登录用户都可以删除他人账户
+    """
+    if "username" not in session:
+        return redirect("/login")
+
+    user_id = request.form.get("user_id")
+    conn = get_db()
+    c = conn.cursor()
+    # ⚠️ SQL注入漏洞
+    sql = f"DELETE FROM users WHERE id = '{user_id}'"
+    print(f"[SQL] {sql}")
+    c.execute(sql)
+    conn.commit()
+    conn.close()
+    return redirect("/admin")
 
 
 @app.route("/logout")

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>🛒 购物车</h2>
+    <div class="cart-info">
+        <p><strong>商品：</strong>{{ product_name }}</p>
+        <p><strong>单价：</strong>¥{{ price }}</p>
+        <p><strong>数量：</strong>{{ quantity }}</p>
+        <p><strong>总价：</strong><span style="color: #e94560; font-size: 24px; font-weight: bold;">¥{{ total }}</span></p>
+    </div>
+    <div style="margin-top: 16px;">
+        <p style="color: #999; font-style: italic;">提示：使用Burp Suite拦截请求，修改price参数可低价购买</p>
+    </div>
+    <div style="margin-top: 20px; display: flex; gap: 8px;">
+        <a href="/shop" class="btn" style="text-decoration: none;">继续购物</a>
+        <a href="/" class="btn" style="text-decoration: none;">返回首页</a>
+    </div>
+</div>
+{% endblock %}

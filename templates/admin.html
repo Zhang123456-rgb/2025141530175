@@ -1,0 +1,34 @@
+<!-- 调试信息 - 管理面板无权限校验 -->
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>⚙️ 管理面板</h2>
+    <p style="color: #999;">⚠️ 当前无权限控制，任何登录用户均可访问</p>
+
+    <table class="search-table" style="margin-top: 16px;">
+        <thead>
+            <tr><th>ID</th><th>用户名</th><th>邮箱</th><th>余额</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.username }}</td>
+                <td>{{ u.email }}</td>
+                <td>¥{{ u.balance }}</td>
+                <td>
+                    <form method="post" action="/admin/delete-user" onsubmit="return confirm('确定删除用户 {{ u.username }} ？')">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        <button type="submit" class="btn" style="background: #e94560; padding: 4px 10px; font-size: 12px;">删除</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="margin-top: 20px;">
+        <a href="/" class="btn" style="text-decoration: none;">返回首页</a>
+    </div>
+</div>
+{% endblock %}

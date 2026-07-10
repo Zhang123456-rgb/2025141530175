@@ -43,10 +43,32 @@ def init_db():
     """)
     def hash_pw(pwd):
         return hashlib.sha256(pwd.encode()).hexdigest()
-    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
-              ("admin", hash_pw("admin123"), "admin@example.com", "13800138000"))
-    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
-              ("alice", hash_pw("alice2025"), "alice@example.com", "13900139001"))
+    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone, balance, role) VALUES (?, ?, ?, ?, ?, ?)",
+              ("admin", hash_pw("admin123"), "admin@example.com", "13800138000", 99999, "admin"))
+    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone, balance, role) VALUES (?, ?, ?, ?, ?, ?)",
+              ("alice", hash_pw("alice2025"), "alice@example.com", "13900139001", 100, "user"))
+
+    # 创建商品表
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            price REAL NOT NULL
+        )
+    """)
+    c.execute("INSERT OR IGNORE INTO products (id, name, price) VALUES (1, 'iPhone 15 Pro Max', 9999)")
+    c.execute("INSERT OR IGNORE INTO products (id, name, price) VALUES (2, 'MacBook Pro 16', 19999)")
+    c.execute("INSERT OR IGNORE INTO products (id, name, price) VALUES (3, 'AirPods Max', 3999)")
+    c.execute("INSERT OR IGNORE INTO products (id, name, price) VALUES (4, 'iPad Pro 12.9', 7999)")
+
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
+    except:
+        pass
     conn.commit()
     conn.close()
 
@@ -200,6 +222,158 @@ def upload():
                            upload_success=upload_success,
                            file_url=file_url,
                            filename=filename_display)
+
+
+@app.route("/shop", methods=["GET"])
+def shop():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT id, name, price FROM products")
+    products = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return render_template("shop_fixed.html", products=products)
+
+
+@app.route("/cart", methods=["POST"])
+def cart():
+    if "username" not in session:
+        return redirect("/login")
+
+    product_id = request.form.get("product_id")
+    quantity = request.form.get("quantity", "1")
+
+    # ✅ 修复：价格从服务器数据库获取，不信任客户端
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT name, price FROM products WHERE id = ?", (product_id,))
+    product = c.fetchone()
+    conn.close()
+
+    if not product:
+        return "商品不存在"
+
+    price = product["price"]
+    total = price * int(quantity)
+
+    return render_template("cart_fixed.html",
+                           product_name=product["name"],
+                           price=price,
+                           quantity=quantity,
+                           total=total)
+
+
+@app.route("/admin", methods=["GET"])
+def admin_panel():
+    # ✅ 修复：检查管理员权限
+    username = session.get("username")
+    if not username:
+        return redirect("/login")
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT role FROM users WHERE username = ?", (username,))
+    row = c.fetchone()
+    if not row or row["role"] != "admin":
+        audit_logger.warning(f"越权访问被拒：用户={username} 尝试访问管理面板")
+        return "权限不足，仅管理员可访问"
+
+    c.execute("SELECT id, username, email, balance FROM users")
+    users = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return render_template("admin_fixed.html", users=users)
+
+
+@app.route("/admin/delete-user", methods=["POST"])
+def admin_delete_user():
+    # ✅ 修复：检查管理员权限
+    username = session.get("username")
+    if not username:
+        return redirect("/login")
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT role FROM users WHERE username = ?", (username,))
+    row = c.fetchone()
+    if not row or row["role"] != "admin":
+        audit_logger.warning(f"越权删除被拒：用户={username}")
+        return "权限不足"
+
+    user_id = request.form.get("user_id")
+    # ✅ 参数化查询
+    c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+
+    audit_logger.info(f"管理员={username} 删除了用户ID={user_id}")
+    conn.close()
+    return redirect("/admin")
+
+
+@app.route("/profile", methods=["GET"])
+def profile():
+    if "username" not in session:
+        return redirect("/login")
+
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return "缺少user_id参数"
+
+    # ✅ 修复：验证当前用户只能查看自己的资料
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT username FROM users WHERE id = ?", (user_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return "用户不存在"
+
+    # 只有admin可以查看所有用户，普通用户只能看自己
+    c.execute("SELECT role FROM users WHERE username = ?", (session["username"],))
+    cur_user = c.fetchone()
+    if cur_user["role"] != "admin" and row["username"] != session["username"]:
+        audit_logger.warning(f"IDOR越权被拒：用户={session['username']} 尝试查看user_id={user_id}")
+        conn.close()
+        return "权限不足，只能查看自己的资料"
+
+    c.execute("SELECT id, username, email, phone, balance FROM users WHERE id = ?", (user_id,))
+    profile_user = dict(c.fetchone())
+    conn.close()
+
+    return render_template("profile_fixed.html", user=profile_user)
+
+
+@app.route("/recharge", methods=["POST"])
+def recharge():
+    if "username" not in session:
+        return redirect("/login")
+
+    user_id = request.form.get("user_id")
+    amount = request.form.get("amount")
+
+    # ✅ 修复：验证当前用户只能给自己充值
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT username FROM users WHERE id = ?", (user_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return "用户不存在"
+    if row["username"] != session["username"]:
+        return "不能为其他用户充值"
+
+    # ✅ 修复：校验amount为正数
+    try:
+        amount = float(amount)
+        if amount <= 0:
+            return "充值金额必须为正数"
+    except ValueError:
+        return "金额格式错误"
+
+    c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, user_id))
+    conn.commit()
+
+    audit_logger.info(f"充值成功：用户={session['username']} 金额=+{amount}")
+    conn.close()
+    return redirect(f"/profile?user_id={user_id}")
 
 
 @app.route("/logout")
