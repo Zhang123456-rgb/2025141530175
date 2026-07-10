@@ -20,14 +20,21 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             email TEXT,
-            phone TEXT
+            phone TEXT,
+            balance REAL DEFAULT 0
         )
     """)
     # 插入默认用户
-    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
-              ("admin", "admin123", "admin@example.com", "13800138000"))
-    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)",
-              ("alice", "alice2025", "alice@example.com", "13900139001"))
+    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone, balance) VALUES (?, ?, ?, ?, ?)",
+              ("admin", "admin123", "admin@example.com", "13800138000", 99999))
+    c.execute("INSERT OR IGNORE INTO users (username, password, email, phone, balance) VALUES (?, ?, ?, ?, ?)",
+              ("alice", "alice2025", "alice@example.com", "13900139001", 100))
+
+    # 兼容旧表：如果 balance 列不存在则添加
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
+    except:
+        pass
     conn.commit()
     conn.close()
 
@@ -209,6 +216,57 @@ def upload():
                            upload_success=upload_success,
                            file_url=file_url,
                            filename=filename)
+
+
+@app.route("/profile", methods=["GET"])
+def profile():
+    # ⚠️ IDOR漏洞：从URL参数获取user_id，不验证当前登录用户
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return "缺少user_id参数"
+
+    conn = get_db()
+    c = conn.cursor()
+    # ⚠️ SQL注入漏洞：字符串拼接
+    sql = f"SELECT id, username, email, phone, balance FROM users WHERE id = '{user_id}'"
+    print(f"[SQL] {sql}")
+    try:
+        c.execute(sql)
+        row = c.fetchone()
+        if row:
+            profile_user = dict(row)
+        else:
+            profile_user = None
+    except Exception as e:
+        print(f"[SQL ERROR] {e}")
+        profile_user = None
+    conn.close()
+
+    return render_template("profile.html", user=profile_user)
+
+
+@app.route("/recharge", methods=["POST"])
+def recharge():
+    # ⚠️ 从表单获取参数，不验证当前用户
+    user_id = request.form.get("user_id")
+    amount = request.form.get("amount")
+
+    if not user_id or not amount:
+        return "缺少参数"
+
+    conn = get_db()
+    c = conn.cursor()
+    # ⚠️ SQL注入漏洞：字符串拼接 + 未校验amount正负
+    sql = f"UPDATE users SET balance = balance + {amount} WHERE id = '{user_id}'"
+    print(f"[SQL] {sql}")
+    try:
+        c.execute(sql)
+        conn.commit()
+    except Exception as e:
+        print(f"[SQL ERROR] {e}")
+    conn.close()
+
+    return redirect(f"/profile?user_id={user_id}")
 
 
 @app.route("/logout")
