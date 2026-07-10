@@ -261,16 +261,24 @@ def profile():
 
 @app.route("/recharge", methods=["POST"])
 def recharge():
-    # ⚠️ 从表单获取参数，不验证当前用户
+    # 从表单获取参数
     user_id = request.form.get("user_id")
     amount = request.form.get("amount")
 
     if not user_id or not amount:
         return "缺少参数"
 
+    # ✅ 修复：金额不能为负数
+    try:
+        amount_val = float(amount)
+        if amount_val <= 0:
+            return "充值金额必须为正数"
+    except ValueError:
+        return "金额格式错误"
+
     conn = get_db()
     c = conn.cursor()
-    # ⚠️ SQL注入漏洞：字符串拼接 + 未校验amount正负
+    # ⚠️ SQL注入漏洞：字符串拼接
     sql = f"UPDATE users SET balance = balance + {amount} WHERE id = '{user_id}'"
     print(f"[SQL] {sql}")
     try:
