@@ -364,6 +364,68 @@ def admin_delete_user():
     return redirect("/admin")
 
 
+@app.route("/page", methods=["GET"])
+def page():
+    """
+    ⚠️ 文件包含漏洞：直接拼接用户输入的路径，不做任何过滤
+    攻击者可通过 ../ 实现路径穿越，读取任意文件
+    """
+    name = request.args.get("name", "")
+    if not name:
+        return "缺少name参数"
+
+    # ⚠️ 漏洞：直接拼接用户输入到路径，未过滤 ../，未使用abspath
+    file_path = os.path.join("pages", name)
+    page_content = None
+
+    # 尝试直接读取
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            page_content = f.read()
+    else:
+        # 尝试加.html后缀
+        html_path = file_path + ".html"
+        if os.path.exists(html_path):
+            with open(html_path, "r", encoding="utf-8") as f:
+                page_content = f.read()
+        else:
+            page_content = "页面不存在"
+
+    return render_template("page.html", page_content=page_content, page_name=name)
+
+
+@app.route("/page_fixed", methods=["GET"])
+def page_fixed():
+    """
+    ✅ 修复版：限制页面只能在 pages/ 目录内，过滤路径穿越
+    """
+    name = request.args.get("name", "")
+    if not name:
+        return "缺少name参数"
+
+    # ✅ 修复：过滤 ../ 和 /
+    if "../" in name or ".." in name:
+        return "页面不存在"
+    if "/" in name or "\\" in name:
+        return "页面不存在"
+
+    file_path = os.path.join("pages", name)
+    page_content = None
+
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            page_content = f.read()
+    else:
+        html_path = file_path + ".html"
+        if os.path.exists(html_path):
+            with open(html_path, "r", encoding="utf-8") as f:
+                page_content = f.read()
+        else:
+            page_content = "页面不存在"
+
+    return render_template("page_fixed.html", page_content=page_content, page_name=name)
+
+
 @app.route("/logout")
 def logout():
     session.clear()
