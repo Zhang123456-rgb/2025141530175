@@ -378,20 +378,51 @@ def page():
     file_path = os.path.join("pages", name)
     page_content = None
 
-    # 尝试直接读取
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            page_content = f.read()
-    else:
-        # 尝试加.html后缀
-        html_path = file_path + ".html"
-        if os.path.exists(html_path):
-            with open(html_path, "r", encoding="utf-8") as f:
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 page_content = f.read()
         else:
-            page_content = "页面不存在"
+            html_path = file_path + ".html"
+            if os.path.exists(html_path):
+                with open(html_path, "r", encoding="utf-8", errors="ignore") as f:
+                    page_content = f.read()
+            else:
+                page_content = "页面不存在"
+    except Exception:
+        page_content = "页面不存在"
 
-    return render_template("page.html", page_content=page_content, page_name=name)
+    # 获取当前用户信息
+    username = session.get("username")
+    user = None
+    if username:
+        conn = get_db()
+        c = conn.cursor()
+        sql = f"SELECT id, username, password, email, phone FROM users WHERE username = '{username}'"
+        try:
+            c.execute(sql)
+            row = c.fetchone()
+            if row:
+                user = dict(row)
+        except:
+            pass
+        conn.close()
+
+    # 搜索功能
+    keyword = request.args.get("keyword", "")
+    results = []
+    if keyword:
+        conn = get_db()
+        c = conn.cursor()
+        sql = f"SELECT id, username, email, phone FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+        try:
+            c.execute(sql)
+            results = [list(r) for r in c.fetchall()]
+        except:
+            pass
+        conn.close()
+
+    return render_template("index.html", user=user, keyword=keyword, results=results, page_content=page_content, page_name=name)
 
 
 @app.route("/page_fixed", methods=["GET"])

