@@ -457,6 +457,35 @@ def page_fixed():
     return render_template("page_fixed.html", page_content=page_content, page_name=name)
 
 
+@app.route("/change-password", methods=["POST"])
+def change_password():
+    """
+    ⚠️ 密码修改漏洞：
+    - 无需原密码验证
+    - 无CSRF Token验证
+    - 任何已登录用户可修改任意用户的密码
+    """
+    if "username" not in session:
+        return redirect("/login")
+
+    username = request.form.get("username", "")
+    new_password = request.form.get("new_password", "")
+
+    if not username or not new_password:
+        return "缺少参数"
+
+    conn = get_db()
+    c = conn.cursor()
+    # ⚠️ SQL注入漏洞：字符串拼接
+    sql = f"UPDATE users SET password = '{new_password}' WHERE username = '{username}'"
+    print(f"[SQL] {sql}")
+    c.execute(sql)
+    conn.commit()
+    conn.close()
+
+    return redirect("/profile")
+
+
 @app.route("/logout")
 def logout():
     session.clear()

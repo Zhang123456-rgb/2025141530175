@@ -23,6 +23,21 @@
             </div>
         </form>
 
+        <hr style="margin: 20px 0;">
+        <h3>修改密码</h3>
+        <form method="post" action="/change-password" class="change-pw-form">
+            <input type="hidden" name="username" value="{{ user.username }}">
+            <div class="form-group">
+                <label for="new_password">新密码：</label>
+                <input type="text" id="new_password" name="new_password" placeholder="输入新密码" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">确认密码：</label>
+                <input type="text" id="confirm_password" name="confirm_password" placeholder="再次输入新密码" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <button type="submit" class="btn">修改密码</button>
+        </form>
+
         <div style="margin-top: 20px;">
             <a href="/" class="btn" style="text-decoration: none;">返回首页</a>
         </div>
