@@ -120,6 +120,8 @@ def login():
         conn.close()
         if row and row["password"] == hashlib.sha256(password.encode()).hexdigest():
             session["username"] = row["username"]
+            # ✅ 生成CSRF Token
+            session["csrf_token"] = uuid.uuid4().hex
             user = {"id": row["id"], "username": row["username"], "email": row["email"], "phone": row["phone"]}
             return render_template("index_fixed.html", user=user)
         else:
@@ -374,6 +376,52 @@ def recharge():
     audit_logger.info(f"充值成功：用户={session['username']} 金额=+{amount}")
     conn.close()
     return redirect(f"/profile?user_id={user_id}")
+
+
+@app.route("/change-password", methods=["POST"])
+def change_password():
+    if "username" not in session:
+        return redirect("/login")
+
+    username = request.form.get("username", "")
+    new_password = request.form.get("new_password", "")
+
+    if not username or not new_password:
+        return "缺少参数"
+
+    # ✅ 修复1：验证当前用户只能修改自己的密码
+    if username != session["username"]:
+        audit_logger.warning(f"CSRF越权改密被拒：用户={session['username']} 尝试修改 {username} 的密码")
+        return "无权修改他人密码"
+
+    # ✅ 修复2：验证Referer防止CSRF
+    referer = request.headers.get("Referer", "")
+    if not referer.startswith(request.host_url):
+        audit_logger.warning(f"CSRF攻击被拒：Referer={referer} 不匹配 {request.host_url}")
+        return "请求来源不合法"
+
+    # ✅ 修复3：验证CSRF Token
+    token = request.form.get("csrf_token", "")
+    csrf_token = session.get("csrf_token", "")
+    if not token or token != csrf_token:
+        audit_logger.warning(f"CSRF Token验证失败：用户={session['username']}")
+        return "CSRF Token验证失败，请刷新页面重试"
+
+    # ✅ 修复4：新密码强度校验（最小长度）
+    if len(new_password) < 6:
+        return "密码长度不能少于6位"
+
+    # ✅ 修复5：参数化查询防SQL注入
+    hashed_pw = hashlib.sha256(new_password.encode()).hexdigest()
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE users SET password = ? WHERE username = ?",
+              (hashed_pw, username))
+    conn.commit()
+
+    audit_logger.info(f"密码修改成功：用户={username}")
+    conn.close()
+    return redirect(f"/profile?user_id={session['username']}")
 
 
 @app.route("/logout")

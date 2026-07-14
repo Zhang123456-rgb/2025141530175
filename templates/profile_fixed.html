@@ -20,6 +20,19 @@
             <button type="submit" class="btn">充值</button>
         </div>
     </form>
+
+    <hr style="margin:20px 0;">
+    <h3>修改密码</h3>
+    <form method="post" action="/change-password">
+        <input type="hidden" name="csrf_token" value="{{ session.get('csrf_token', '') }}">
+        <input type="hidden" name="username" value="{{ user.username }}">
+        <div class="form-group">
+            <label for="new_password">新密码：</label>
+            <input type="password" id="new_password" name="new_password" placeholder="输入新密码（至少6位）" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;" required minlength="6">
+        </div>
+        <button type="submit" class="btn">修改密码</button>
+    </form>
+
     <a href="/" class="btn" style="text-decoration:none;margin-top:20px;display:inline-block;">返回首页</a>
     {% else %}
     <h2>用户不存在</h2>
