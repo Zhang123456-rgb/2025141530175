@@ -424,6 +424,84 @@ def change_password():
     return redirect(f"/profile?user_id={session['username']}")
 
 
+@app.route("/search", methods=["GET"])
+def search():
+    keyword = request.args.get("keyword", "")
+    if not keyword:
+        return redirect("/")
+
+    # ✅ 参数化查询防SQL注入
+    search_term = f"%{keyword}%"
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT id, username, email, phone FROM users WHERE username LIKE ? OR email LIKE ?",
+              (search_term, search_term))
+    results = [list(r) for r in c.fetchall()]
+    conn.close()
+
+    username = session.get("username")
+    user = None
+    if username:
+        conn2 = get_db()
+        c2 = conn2.cursor()
+        c2.execute("SELECT id, username, email, phone FROM users WHERE username = ?", (username,))
+        row = c2.fetchone()
+        if row:
+            user = dict(row)
+        conn2.close()
+
+    return render_template("index_fixed.html", user=user, keyword=keyword, results=results)
+
+
+@app.route("/page_fixed", methods=["GET"])
+def page():
+    """
+    ✅ 修复版：白名单 + 路径校验防路径穿越
+    """
+    name = request.args.get("name", "")
+    if not name:
+        return "缺少name参数"
+
+    # ✅ 白名单：只允许特定页面
+    ALLOWED_PAGES = {"help", "about", "faq", "csrf", "protocols", "scanning", "attack"}
+    if name not in ALLOWED_PAGES:
+        return "页面不存在"
+
+    # ✅ 路径安全校验
+    base_dir = os.path.abspath("pages")
+    requested_path = os.path.abspath(os.path.join("pages", name))
+    if not requested_path.startswith(base_dir):
+        return "页面不存在"
+
+    page_content = None
+    try:
+        html_path = requested_path + ".html"
+        if os.path.exists(html_path):
+            with open(html_path, "r", encoding="utf-8", errors="ignore") as f:
+                page_content = f.read()
+        elif os.path.exists(requested_path):
+            with open(requested_path, "r", encoding="utf-8", errors="ignore") as f:
+                page_content = f.read()
+        else:
+            page_content = "页面不存在"
+    except Exception:
+        page_content = "页面不存在"
+
+    # 获取当前用户信息
+    username = session.get("username")
+    user = None
+    if username:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT id, username, email, phone FROM users WHERE username = ?", (username,))
+        row = c.fetchone()
+        if row:
+            user = dict(row)
+        conn.close()
+
+    return render_template("index_fixed.html", user=user, page_content=page_content, page_name=name)
+
+
 @app.route("/logout")
 def logout():
     session.clear()
