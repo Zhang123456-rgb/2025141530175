@@ -73,6 +73,23 @@
             {% endif %}
         {% endif %}
 
+        <!-- ====== URL抓取功能（SSRF演示） ====== -->
+        <hr style="margin: 20px 0;">
+        <h3>🌐 URL抓取（SSRF演示）</h3>
+        <form method="post" action="/fetch-url" class="fetch-form">
+            <div class="form-group" style="display: flex; gap: 8px;">
+                <input type="text" id="url" name="url" placeholder="输入URL，如 http://127.0.0.1:5000/ 或 file:///etc/passwd" value="{{ fetch_url or '' }}" style="flex: 1;">
+                <button type="submit" class="btn">抓取</button>
+            </div>
+        </form>
+        {% if fetch_status %}
+        <div style="margin-top: 12px;">
+            <p><strong>状态码：</strong>{{ fetch_status }}</p>
+            <pre style="background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; overflow-x: auto; max-height: 400px; font-size: 12px; white-space: pre-wrap; word-break: break-all;">{{ fetch_content }}</pre>
+        </div>
+        {% endif %}
+        <!-- ====== URL抓取结束 ====== -->
+
         <a href="/logout" class="btn btn-logout">退出登录</a>
     {% else %}
         <h2>请先登录</h2>

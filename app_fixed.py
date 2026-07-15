@@ -5,6 +5,11 @@ import hashlib
 import uuid
 import logging
 import magic
+import urllib.request
+import urllib.parse
+import urllib.error
+import socket
+import ipaddress
 from datetime import datetime
 from pathlib import Path
 
@@ -500,6 +505,84 @@ def page():
         conn.close()
 
     return render_template("index_fixed.html", user=user, page_content=page_content, page_name=name)
+
+
+# ========== SSRF修复版本 ==========
+# ✅ 限制协议白名单（仅http/https）
+# ✅ 阻止内网IP（私有网段检测）
+# ✅ 限制端口（仅80/443）
+# ✅ 限制返回数据大小
+# ✅ DNS解析异常处理
+
+ALLOWED_PROTOCOLS = {"http", "https"}
+ALLOWED_PORTS = {80, 443}
+
+
+@app.route("/fetch-url", methods=["POST"])
+def fetch_url():
+    if "username" not in session:
+        return redirect("/login")
+
+    target_url = request.form.get("url", "").strip()
+    if not target_url:
+        return render_template("index_fixed.html", fetch_status="错误", fetch_content="请输入URL")
+
+    # ✅ 1. URL解析
+    try:
+        parsed = urllib.parse.urlparse(target_url)
+    except Exception:
+        return render_template("index_fixed.html", fetch_status="错误", fetch_content="URL格式不合法")
+
+    # ✅ 2. 协议白名单（禁止file://、gopher://等）
+    if parsed.scheme not in ALLOWED_PROTOCOLS:
+        msg = f"不支持的协议: {parsed.scheme}，仅允许http/https"
+        audit_logger.warning(f"SSRF阻断：协议不合法 {parsed.scheme} from={session['username']}")
+        return render_template("index_fixed.html", fetch_status="拒绝", fetch_content=msg)
+
+    # ✅ 3. 端口限制
+    port = parsed.port or {"https": 443, "http": 80}.get(parsed.scheme, 80)
+    if port not in ALLOWED_PORTS:
+        msg = f"不允许的端口: {port}，仅允许80/443"
+        audit_logger.warning(f"SSRF阻断：端口不合法 {port} from={session['username']}")
+        return render_template("index_fixed.html", fetch_status="拒绝", fetch_content=msg)
+
+    # ✅ 4. 内网IP阻止
+    try:
+        host = socket.gethostbyname(parsed.hostname)
+        if ipaddress.ip_address(host).is_private:
+            msg = "不允许访问内网地址"
+            audit_logger.warning(f"SSRF阻断：内网IP {host} from={session['username']}")
+            return render_template("index_fixed.html", fetch_status="拒绝", fetch_content=msg)
+    except socket.gaierror:
+        msg = "域名解析失败"
+        return render_template("index_fixed.html", fetch_status="错误", fetch_content=msg)
+
+    # ✅ 5. 发起请求（限制响应大小）
+    result = {"status": "未知", "content": ""}
+    try:
+        req = urllib.request.Request(target_url, headers={"User-Agent": "Mozilla/5.0"})
+        resp = urllib.request.urlopen(req, timeout=10)
+        result["status"] = f"{resp.status} {resp.msg}"
+        raw = resp.read(1024 * 100)  # 最多100KB
+        content = raw.decode("utf-8", errors="ignore")
+        result["content"] = content[:5000]
+        if len(content) > 5000:
+            result["content"] += "\n\n...（截断，仅显示前5000字符）"
+        audit_logger.info(f"SSRF请求成功: {target_url} status={resp.status} from={session['username']}")
+    except urllib.error.HTTPError as e:
+        result["status"] = f"HTTP错误: {e.code}"
+        result["content"] = str(e.read())[:2000]
+    except urllib.error.URLError as e:
+        result["status"] = "URL错误"
+        result["content"] = str(e.reason)
+    except Exception as e:
+        result["status"] = "错误"
+        result["content"] = str(e)
+
+    return render_template("index_fixed.html",
+                           fetch_status=result["status"],
+                           fetch_content=result["content"],
+                           fetch_url=target_url)
 
 
 @app.route("/logout")
