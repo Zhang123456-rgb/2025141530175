@@ -3,6 +3,8 @@ import os
 import sqlite3
 import urllib.request
 import urllib.error
+import subprocess
+import platform
 
 app = Flask(__name__)
 app.secret_key = "dev-key-2025"
@@ -545,6 +547,47 @@ def fetch_url():
                            fetch_status=result["status"],
                            fetch_content=result["content"],
                            fetch_url=target_url)
+
+
+@app.route("/ping", methods=["GET", "POST"])
+def ping():
+    """
+    ⚠️ 命令注入漏洞：直接拼接用户输入到系统命令
+    - 使用 shell=True
+    - 不过滤 ip 参数
+    """
+    if "username" not in session:
+        return redirect("/login")
+
+    result = None
+    cmd = None
+    ip_input = ""
+
+    if request.method == "POST":
+        ip_input = request.form.get("ip", "")
+        if ip_input:
+            # ⚠️ 命令注入：使用 f-string 拼接 + shell=True
+            cmd = f"ping -c 3 {ip_input}"
+            print(f"[CMD] {cmd}")
+            try:
+                output = subprocess.check_output(
+                    cmd,
+                    shell=True,
+                    stderr=subprocess.STDOUT,
+                    timeout=30,
+                    universal_newlines=True
+                )
+                result = output
+            except subprocess.CalledProcessError as e:
+                result = f"命令执行失败 (返回码: {e.returncode})\n{e.output}"
+            except subprocess.TimeoutExpired:
+                result = "命令执行超时"
+            except Exception as e:
+                result = f"执行错误: {str(e)}"
+
+    return render_template("ping.html", result=result, cmd=cmd, ip=ip_input)
+
+
 
 
 @app.route("/logout")

@@ -10,6 +10,8 @@ import urllib.parse
 import urllib.error
 import socket
 import ipaddress
+import subprocess
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -584,6 +586,49 @@ def fetch_url():
                            fetch_content=result["content"],
                            fetch_url=target_url)
 
+
+
+@app.route("/ping", methods=["GET", "POST"])
+def ping():
+    """✅ 修复版：IP白名单 + 参数列表形式，防命令注入"""
+    if "username" not in session:
+        return redirect("/login")
+
+    result = None
+    cmd_str = None
+    ip_input = ""
+
+    if request.method == "POST":
+        ip_input = request.form.get("ip", "")
+        if ip_input:
+            # ✅ 修复1：正则验证IP格式
+            import re
+            ip_pattern = r"^(?:\d{1,3}\.){3}\d{1,3}$"
+            if not re.match(ip_pattern, ip_input):
+                result = "IP地址格式不合法"
+            else:
+                # ✅ 修复2：验证每段范围
+                valid = all(0 <= int(p) <= 255 for p in ip_input.split("."))
+                if not valid:
+                    result = "IP段超出范围"
+                else:
+                    # ✅ 修复3：参数列表形式（无shell=True）
+                    cmd_str = f"ping -c 3 {ip_input}"
+                    try:
+                        output = subprocess.check_output(
+                            ["ping", "-c", "3", ip_input],
+                            timeout=30, stderr=subprocess.STDOUT,
+                            universal_newlines=True
+                        )
+                        result = output
+                    except subprocess.CalledProcessError as e:
+                        result = f"命令执行失败 (返回码: {e.returncode})\n{e.output}"
+                    except subprocess.TimeoutExpired:
+                        result = "命令执行超时"
+                    except Exception as e:
+                        result = f"执行错误: {str(e)}"
+
+    return render_template("ping.html", result=result, cmd=cmd_str, ip=ip_input)
 
 @app.route("/logout")
 def logout():
