@@ -5,6 +5,8 @@ import urllib.request
 import urllib.error
 import subprocess
 import platform
+import re
+import json
 
 app = Flask(__name__)
 app.secret_key = "dev-key-2025"
@@ -586,6 +588,64 @@ def ping():
                 result = f"执行错误: {str(e)}"
 
     return render_template("ping.html", result=result, cmd=cmd, ip=ip_input)
+
+
+@app.route("/xml-import", methods=["GET", "POST"])
+def xml_import():
+    """
+    ⚠️ XXE漏洞：解析用户输入的XML，读取外部实体引用的本地文件
+    """
+    if "username" not in session:
+        return redirect("/login")
+
+    result = None
+    raw_xml = ""
+
+    if request.method == "POST":
+        raw_xml = request.form.get("xml_data", "")
+
+        if raw_xml.strip():
+            # ⚠️ 漏洞：提取ENTITY/SYSTEM中的文件路径并读取本地文件
+            try:
+                # 检测XML中的ENTITY定义
+                entity_pattern = re.findall(r'<!ENTITY\s+(\S+)\s+SYSTEM\s+"([^"]+)"', raw_xml)
+                file_contents = {}
+
+                if entity_pattern:
+                    for entity_name, filepath in entity_pattern:
+                        # ⚠️ 读取本地文件（无路径限制！）
+                        try:
+                            real_path = filepath
+                            if real_path.startswith('file://'):
+                                real_path = real_path[7:]
+                            with open(real_path, "r", encoding="utf-8", errors="ignore") as f:
+                                file_contents[entity_name] = f.read()
+                        except Exception as e:
+                            file_contents[entity_name] = f"读取失败: {str(e)}"
+
+                # 动态替换实体引用（不再硬编码&xxe;）
+                parsed_xml = raw_xml
+                for ename, fcontent in file_contents.items():
+                    parsed_xml = parsed_xml.replace(f"&{ename};", fcontent)
+
+                # 提取user节点的name和email
+                name_match = re.search(r'<name>([^<]+)</name>', parsed_xml)
+                email_match = re.search(r'<email>([^<]+)</email>', parsed_xml)
+
+                output = {}
+                if name_match:
+                    output["name"] = name_match.group(1)
+                if email_match:
+                    output["email"] = email_match.group(1)
+                if file_contents:
+                    output["file_contents"] = file_contents
+
+                result = json.dumps(output, ensure_ascii=False, indent=2)
+
+            except Exception as e:
+                result = json.dumps({"error": str(e)}, ensure_ascii=False, indent=2)
+
+    return render_template("xml_import.html", result=result, xml_data=raw_xml)
 
 
 @app.route("/logout")
